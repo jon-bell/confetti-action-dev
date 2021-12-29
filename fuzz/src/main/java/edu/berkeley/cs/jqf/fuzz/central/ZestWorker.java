@@ -1,5 +1,6 @@
 package edu.berkeley.cs.jqf.fuzz.central;
 
+import edu.berkeley.cs.jqf.fuzz.guidance.RecordingInputStream;
 import edu.berkeley.cs.jqf.fuzz.guidance.Result;
 
 import java.io.IOException;
@@ -8,7 +9,7 @@ import java.io.ObjectOutputStream;
 import java.util.*;
 
 class ZestWorker extends Worker {
-    private ArrayList<LinkedList<byte[]>> inputs = new ArrayList<>();
+    private ArrayList<RecordingInputStream.MarkedInput> inputs = new ArrayList<>();
     private ArrayList<TreeSet<Integer>> recommendations = new ArrayList<>();
     private LinkedList<Integer> newlyRecommendedInputsToQueue = new LinkedList<>();
     private HashSet<Integer> allRecommendedInputs = new HashSet<>();
@@ -61,7 +62,7 @@ class ZestWorker extends Worker {
 
                 case SENDINPUT:
                     // Receive input
-                    LinkedList<byte[]> inputRequests = (LinkedList<byte[]>) ois.readObject();
+                    RecordingInputStream.MarkedInput recording = (RecordingInputStream.MarkedInput) ois.readObject();
                     Result res = (Result) ois.readObject();
                     int id = ois.readInt();
 
@@ -87,22 +88,10 @@ class ZestWorker extends Worker {
                         }
                         //throw new IllegalArgumentException();
                     }
-                    inputs.add(id, inputRequests);
+                    inputs.add(id, recording);
 
-                    // Let coordinator thread know
-                    int size_sendinput = 0;
-                    for (byte[] b : inputRequests)
-                        size_sendinput += b.length;
-                    byte[] bs = new byte[size_sendinput];
-                    int i = 0;
-                    LinkedList<int[]> requestOffsets = new LinkedList<int[]>();
-                    for (byte[] b : inputRequests) {
-                        requestOffsets.add(new int[]{i, b.length});
-                        System.arraycopy(b, 0, bs, i, b.length);
-                        i += b.length;
-                    }
 
-                    c.foundInput(id, bs, res != Result.INVALID, hints, instructions, targetedHints, coveragePercentage, numExecutions, score, requestOffsets);
+                    c.foundInput(id, recording, res != Result.INVALID, hints, instructions, targetedHints, coveragePercentage, numExecutions, score);
 
 
                     synchronized (recommendations) {
@@ -116,7 +105,6 @@ class ZestWorker extends Worker {
                     int selected = (Integer) ois.readObject();
 
                     // Select part of the input to fuzz
-                    int offset = 0;
                     LinkedList<int[]> instructionsToSend = new LinkedList<>();
                     LinkedList<Coordinator.StringHint[]> stringsToSend = new LinkedList<>();
                     TreeSet<Integer> recs;
@@ -130,11 +118,15 @@ class ZestWorker extends Worker {
 
                     HashMap<Integer, HashSet<Coordinator.StringHint>> inputStrings = stringEqualsHints.get(selected);
 
-                    for (byte[] b : inputs.get(selected)) {
+                    int offset = 0;
+                    //12-29-21: JSB refactored to reduce array allocations, this code should probably be refactored further... TBD...
+                    for(int i = 0; i < inputs.get(selected).getMarks().length; i++){
+                        int mark = inputs.get(selected).getMarks()[i];
+                        int reqLen = inputs.get(selected).getMarkLength(i);
                         if (!recs.isEmpty()) {
                             boolean addThis = false;
 
-                            for (int j = offset; j < offset + b.length; j++) {
+                            for (int j = offset; j < offset + reqLen; j++) {
                                 addThis = recs.contains(j);
 
                                 if (addThis)
@@ -142,18 +134,17 @@ class ZestWorker extends Worker {
                             }
 
                             if (!addThis) {
-                                offset += b.length;
+                                offset += reqLen;
                                 continue;
                             }
 
-                            instructionsToSend.addLast(new int[]{offset, b.length});
+                            instructionsToSend.addLast(new int[]{offset, reqLen});
                             if (inputStrings != null && inputStrings.containsKey(offset))
                                 stringsToSend.addLast(inputStrings.get(offset).toArray(new Coordinator.StringHint[0]));
                             else
                                 stringsToSend.addLast(EMPTY);
                         }
-
-                        offset += b.length;
+                        offset += reqLen;
                     }
                     //Flatten the list and sort it.
 
