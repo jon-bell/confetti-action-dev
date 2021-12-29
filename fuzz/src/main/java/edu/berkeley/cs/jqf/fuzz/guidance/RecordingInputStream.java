@@ -97,6 +97,8 @@ public class RecordingInputStream extends InputStream {
         }
     }
     public static int unsafeGetLastMark(){
+        if(currentMarks == null)
+            return 0;
         return currentMarks.getLast();
     }
 
