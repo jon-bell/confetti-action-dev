@@ -9,7 +9,6 @@ import java.util.*;
 
 class ZestWorker extends Worker {
     private ArrayList<LinkedList<byte[]>> inputs = new ArrayList<>();
-    private ArrayList<Integer> fuzzing = new ArrayList<>();
     private ArrayList<TreeSet<Integer>> recommendations = new ArrayList<>();
     private LinkedList<Integer> newlyRecommendedInputsToQueue = new LinkedList<>();
     private HashSet<Integer> allRecommendedInputs = new HashSet<>();
@@ -83,14 +82,12 @@ class ZestWorker extends Worker {
                         //just grow the arraylist to fit this... old behavior was to die in this case
                         while(inputs.size() < id){
                             inputs.add(null);
-                            fuzzing.add(null);
                             recommendations.add(new TreeSet<>());
                             stringEqualsHints.add(null);
                         }
                         //throw new IllegalArgumentException();
                     }
                     inputs.add(id, inputRequests);
-                    fuzzing.add(id, 0);
 
                     // Let coordinator thread know
                     int size_sendinput = 0;
@@ -120,7 +117,6 @@ class ZestWorker extends Worker {
 
                     // Select part of the input to fuzz
                     int offset = 0;
-                    int toFuzz = fuzzing.get(selected);
                     LinkedList<int[]> instructionsToSend = new LinkedList<>();
                     LinkedList<Coordinator.StringHint[]> stringsToSend = new LinkedList<>();
                     TreeSet<Integer> recs;
@@ -129,10 +125,7 @@ class ZestWorker extends Worker {
                     }
 
                     if(inputs.get(selected) == null){
-                        oos.writeObject(null);
-                        oos.writeObject(null);
-                        oos.writeObject(null);
-                        break;
+                        throw new IllegalStateException("Zest client requested an input that was not processed");
                     }
 
                     HashMap<Integer, HashSet<Coordinator.StringHint>> inputStrings = stringEqualsHints.get(selected);
@@ -209,8 +202,12 @@ class ZestWorker extends Worker {
                     oos.writeObject(stringsToSend);     // Strings that are new hints
                     oos.writeObject(in == null || in.targetedHints == null ? new HashSet<>() : in.targetedHints);
 
-                    // Update state
-                    fuzzing.set(selected, (toFuzz + 1) % inputs.get(selected).size());
+                    //Evict this input: the fuzz client should never call "selectInput" a second time for the same input.
+                    synchronized (recommendations){
+                        inputs.set(selected, null);
+                        recommendations.set(selected, null);
+                        stringEqualsHints.set(selected, null);
+                    }
                     break;
 
                 case GETZ3INPUT:
