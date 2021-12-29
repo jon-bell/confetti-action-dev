@@ -58,7 +58,7 @@ public class ZestClient extends Central {
      * 3. Select input
      * 3. Receive instructions
      */
-    public void sendInput(LinkedList<byte[]> inputRequests, Result result, ZestGuidance.Input input, Double coveragePercentage, Long totalExecutions) throws IOException {
+    public void sendInput(LinkedList<byte[]> inputRequests, Result result, ZestGuidance.Input input, double coveragePercentage, long totalExecutions) throws IOException {
         oos.writeObject(ZestMessageType.SENDINPUT);
         oos.writeObject(inputRequests);
         oos.writeObject(result);

@@ -70,9 +70,9 @@ class ZestWorker extends Worker {
                     LinkedList<int[]> instructions = (LinkedList<int[]>) ois.readObject();
                     LinkedList<Coordinator.TargetedHint> targetedHints = (LinkedList<Coordinator.TargetedHint>) ois.readObject();
 
-                    Double coveragePercentage = ois.readDouble();
-                    Long numExecutions = ois.readLong();
-                    Integer score = ois.readInt();
+                    double coveragePercentage = ois.readDouble();
+                    long numExecutions = ois.readLong();
+                    int score = ois.readInt();
 
                     // Receive coverage
                     //                Coverage cov = (Coverage) ois.readObject();
