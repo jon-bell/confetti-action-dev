@@ -1393,7 +1393,12 @@ public class Coordinator implements Runnable {
             try {
                 //System.out.println("Reading constraints from " + this.exprFile);
                 fileIn = new GZIPInputStream(new BufferedInputStream(new FileInputStream(this.exprFile)));
-                return deserializer.fromInputStream(fileIn);
+                try {
+                    LinkedList<Expression> ret = deserializer.fromInputStream(fileIn);
+                    return ret;
+                }finally{
+                    fileIn.close();
+                }
             } catch (IOException e) {
                 e.printStackTrace();
                 System.exit(-1); //TODO debugging
