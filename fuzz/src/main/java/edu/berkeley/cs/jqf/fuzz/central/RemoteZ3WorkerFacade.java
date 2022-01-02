@@ -91,36 +91,42 @@ public class RemoteZ3WorkerFacade {
             Process proc = pb.start();
 
             try {
-                proc.waitFor(Z3JavaTranslator.timeoutMS + MARGIN_FOR_SERIALIZATION, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            if (proc.isAlive()) {
-                long pid = getPidOfProcess(proc);
-                if (pid > 0) {
-                    Runtime.getRuntime().exec(new String[]{"kill", "-9", "" + pid});
+                try {
+                    proc.waitFor(Z3JavaTranslator.timeoutMS + MARGIN_FOR_SERIALIZATION, TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
-                throw new TimeoutException("Z3 Process didn't finish in time");
-            }
-            if (proc.exitValue() != 0) {
-                throw new TimeoutException("Non-zero exit from Z3");
-            }
+                if (proc.isAlive()) {
+                    long pid = getPidOfProcess(proc);
+                    if (pid > 0) {
+                        Runtime.getRuntime().exec(new String[]{"kill", "-9", "" + pid});
+                    }
+                    throw new TimeoutException("Z3 Process didn't finish in time");
+                }
+                if (proc.exitValue() != 0) {
+                    throw new TimeoutException("Non-zero exit from Z3");
+                }
 
-            //Check for output
-            if (Files.size(outputFromZ3Worker) == 0) {
-                throw new TimeoutException("Empty output from Z3, see Z3 process output for details, likely timeout");
-            }
+                //Check for output
+                if (Files.size(outputFromZ3Worker) == 0) {
+                    throw new TimeoutException("Empty output from Z3, see Z3 process output for details, likely timeout");
+                }
 
-            ObjectInputStream ois = new ObjectInputStream(new BufferedInputStream(new FileInputStream(outputFromZ3Worker.toFile())));
-            Coordinator.Input ret = null;
-            if (ois.readBoolean()) {
-                ret = (Coordinator.Input) ois.readObject();
+                ObjectInputStream ois = new ObjectInputStream(new BufferedInputStream(new FileInputStream(outputFromZ3Worker.toFile())));
+                Coordinator.Input ret = null;
+                if (ois.readBoolean()) {
+                    ret = (Coordinator.Input) ois.readObject();
+                }
+                ois.close();
+                if (ret != null) {
+                    return Optional.of(ret);
+                } else {
+                    return Optional.empty();
+                }
             }
-            ois.close();
-            if (ret != null) {
-                return Optional.of(ret);
-            } else {
-                return Optional.empty();
+            finally{
+                Files.deleteIfExists(inputToZ3Worker);
+                Files.deleteIfExists(outputFromZ3Worker);
             }
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
