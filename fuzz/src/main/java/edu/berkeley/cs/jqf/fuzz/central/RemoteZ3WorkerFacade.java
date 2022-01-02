@@ -80,6 +80,7 @@ public class RemoteZ3WorkerFacade {
             z3Args.add("-cp");
             z3Args.add(classpath);
             z3Args.add("-Xmx1g");
+            z3Args.add("-Xss16m");
             appendSystemPropertyIfDefined("java.library.path", z3Args);
             appendSystemPropertyIfDefined("Z3_timeout", z3Args);
             z3Args.add("edu.berkeley.cs.jqf.fuzz.central.Z3Worker");
